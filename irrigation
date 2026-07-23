@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Vitesse enrouleur RM</title>
+<style>
+  :root{--ink:#1c2a1f;--paper:#f7f5ee;--field:#ffffff;--line:#cfd6c4;--accent:#3f6b3f;--accent-dark:#2c4d2c;--warn:#a4501f;--muted:#6b7166;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--paper);color:var(--ink);font-family:'Helvetica Neue', Arial, sans-serif;-webkit-text-size-adjust:100%;padding:20px 16px 60px;}
+  .wrap{max-width:520px;margin:0 auto;}
+  header{margin-bottom:22px;}
+  .eyebrow{font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 6px;}
+  h1{font-size:26px;line-height:1.15;margin:0 0 8px;font-weight:800;color:var(--ink);}
+  .sub{font-size:14px;color:var(--muted);margin:0;line-height:1.4;}
+  .card{background:var(--field);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .field-row{display:flex;gap:12px;margin-bottom:14px;}
+  .field-row:last-child{margin-bottom:0;}
+  .field{flex:1;}
+  label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:6px;}
+  input[type=number]{width:100%;font-size:19px;padding:12px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fbfaf6;color:var(--ink);font-family:inherit;font-weight:600;}
+  input[type=number]:focus{outline:none;border-color:var(--accent);background:#fff;}
+  .buse-select{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+  .buse-btn{padding:12px 4px;border-radius:10px;border:1.5px solid var(--line);background:#fbfaf6;text-align:center;font-weight:700;font-size:15px;color:var(--ink);}
+  .buse-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .result{background:var(--accent-dark);color:#fff;border-radius:14px;padding:24px 20px;text-align:center;margin-bottom:16px;}
+  .result .label{font-size:12px;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:8px;font-weight:700;}
+  .result .value{font-size:52px;font-weight:800;line-height:1;letter-spacing:-0.01em;}
+  .result .unit{font-size:18px;font-weight:500;opacity:0.85;margin-left:4px;}
+  .result .debit{margin-top:10px;font-size:13px;opacity:0.75;}
+  .result.warn{background:var(--warn);}
+  .result .warn-msg{margin-top:10px;font-size:13px;font-weight:600;}
+  .field-check{background:#fff;border:1.5px dashed var(--line);border-radius:12px;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.5;}
+  .field-check strong{color:var(--ink);}
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:24px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Enrouleur RM - Canon SIME Ranger 3"</p>
+    <h1>Vitesse a regler</h1>
+    <p class="sub">Choisissez la buse, entrez la pression, la dose et l'espacement.</p>
+  </header>
+  <div class="card">
+    <label>Buse (mm)</label>
+    <div class="buse-select" id="buseSelect">
+      <div class="buse-btn" data-buse="24">24</div>
+      <div class="buse-btn active" data-buse="26">26</div>
+      <div class="buse-btn" data-buse="28">28</div>
+      <div class="buse-btn" data-buse="30">30</div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="pression">Pression (bar)</label>
+        <input type="number" id="pression" value="4" step="0.1" min="3" max="5" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label for="dose">Dose (mm)</label>
+        <input type="number" id="dose" value="25" step="1" min="1" inputmode="decimal">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="espacement">Espacement E (m)</label>
+        <input type="number" id="espacement" value="80" step="1" min="1" inputmode="decimal">
+      </div>
+      <div class="field"></div>
+    </div>
+  </div>
+  <div class="result" id="result">
+    <div class="label">Vitesse d'avancement</div>
+    <div class="value"><span id="vitesse">-</span><span class="unit">m/h</span></div>
+    <div class="debit" id="debitInfo"></div>
+  </div>
+  <div class="field-check">
+    <strong>Verif terrain :</strong> marquez un point sur le tuyau, mesurez la distance parcourue en 6 minutes, multipliez par 10 pour la vitesse reelle. Ecart tolere : 15% (mecanique) ou 5% (electronique).
+  </div>
+  <footer>Debits issus de l'abaque constructeur (tuyau 89,6 mm, longueur 50 m).</footer>
+</div>
+<script>
+const data = {
+  24: [[3, 37.38], [4, 43.20], [5, 48.36]],
+  26: [[3, 43.92], [4, 50.76], [5, 56.76]],
+  28: [[3, 50.88], [4, 58.86], [5, 65.76]],
+  30: [[3, 58.44], [4, 67.62], [5, 75.60]],
+};
+let currentBuse = 26;
+const buseButtons = document.querySelectorAll('.buse-btn');
+const pressionInput = document.getElementById('pression');
+const doseInput = document.getElementById('dose');
+const espacementInput = document.getElementById('espacement');
+const vitesseEl = document.getElementById('vitesse');
+const debitInfoEl = document.getElementById('debitInfo');
+const resultEl = document.getElementById('result');
+buseButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    buseButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentBuse = parseInt(btn.dataset.buse, 10);
+    calc();
+  });
+});
+[pressionInput, doseInput, espacementInput].forEach(el => { el.addEventListener('input', calc); });
+function interpolateDebit(buse, pression) {
+  const points = data[buse];
+  if (pression <= points[0][0]) {
+    const [p1, q1] = points[0]; const [p2, q2] = points[1];
+    const slope = (q2 - q1) / (p2 - p1);
+    return q1 + slope * (pression - p1);
+  }
+  if (pression >= points[points.length - 1][0]) {
+    const [p1, q1] = points[points.length - 2]; const [p2, q2] = points[points.length - 1];
+    const slope = (q2 - q1) / (p2 - p1);
+    return q2 + slope * (pression - p2);
+  }
+  for (let i = 0; i < points.length - 1; i++) {
+    const [p1, q1] = points[i]; const [p2, q2] = points[i + 1];
+    if (pression >= p1 && pression <= p2) {
+      const t = (pression - p1) / (p2 - p1);
+      return q1 + t * (q2 - q1);
+    }
+  }
+  return null;
+}
+function calc() {
+  const pression = parseFloat(pressionInput.value);
+  const dose = parseFloat(doseInput.value);
+  const espacement = parseFloat(espacementInput.value);
+  if (!pression || !dose || !espacement || pression <= 0 || dose <= 0 || espacement <= 0) {
+    vitesseEl.textContent = '-'; debitInfoEl.textContent = ''; resultEl.classList.remove('warn'); return;
+  }
+  const q = interpolateDebit(currentBuse, pression);
+  const vitesse = (1000 * q) / (dose * espacement);
+  vitesseEl.textContent = vitesse.toFixed(1);
+  debitInfoEl.textContent = `Debit estime : ${q.toFixed(1)} m3/h`;
+  const points = data[currentBuse];
+  const pMin = points[0][0]; const pMax = points[points.length - 1][0];
+  if (pression < pMin || pression > pMax) {
+    resultEl.classList.add('warn');
+    debitInfoEl.innerHTML = `Debit estime (extrapole) : ${q.toFixed(1)} m3/h<br><span class="warn-msg">Pression hors plage constructeur (${pMin}-${pMax} bar)</span>`;
+  } else { resultEl.classList.remove('warn'); }
+}
+calc();
+</script>
+</body>
+</html>
